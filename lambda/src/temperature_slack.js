@@ -21,9 +21,7 @@ exports.handler = async (event, context, callback) => {
 
           resolve(
             Response.success(
-              Slack.inChannel({
-                temperature: `It is currently *${temp.toStringFahrenheit()}* inside the domicile.`
-              })
+              Slack.inChannel(`It is currently *${temp.toStringFahrenheit()}* inside the domicile.`)
             )
           );
         } else {
