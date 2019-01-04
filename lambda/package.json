@@ -2,7 +2,7 @@
   "name": "homeinate-functions",
   "scripts": {
     "serve": "netlify-lambda serve src",
-    "build": "netlify-lambda serve build"
+    "build": "netlify-lambda serve src"
   },
   "devDependencies": {
     "netlify-lambda": "^1.1.1"
