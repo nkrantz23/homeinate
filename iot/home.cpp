@@ -1,17 +1,32 @@
 // This #include statement was automatically added by the Particle IDE.
+#include <Adafruit_SSD1306.h>
+
+// This #include statement was automatically added by the Particle IDE.
 #include <OneWire.h>
 
-OneWire ds = OneWire(D4);
+#define OLED_DC     D3
+#define OLED_CS     D4
+#define OLED_RESET  D5
+#define TEMP_PIN    D2
+
+OneWire ds = OneWire(TEMP_PIN);
+
+Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
 
 double lastTemp;
+int lastLight;
+String displayMode = "temp";
 
 const int ERR_NO_MORE_ADDRESS = -255;
 const int ERR_CRC_INVALID = -256;
 const int ERR_UNKNOWN_DEVICE_TYPE = -257;
+const int TEXT_MEDIUM = 5;
+const int TEXT_SMALL = 2;
 
 void setup()
 {
     setupSensors();
+    setupDisplay();
     setupVariables();
     setupFunctions();
 }
@@ -22,25 +37,39 @@ void setupSensors()
 
   pinMode(D3, OUTPUT);
   pinMode(D5, OUTPUT);
+  
   digitalWrite(D3, LOW);
   digitalWrite(D5, HIGH);
 }
 
+void setupDisplay()
+{
+    display.begin(SSD1306_SWITCHCAPVCC);
+    display.setTextSize(TEXT_MEDIUM);
+    display.setTextColor(WHITE);
+}
+
 void setupVariables()
 {
-    Particle.variable("temperature",  lastTemp);
+    Particle.variable("temperature",  &lastTemp, DOUBLE);
+    Particle.variable("light", &lastLight, INT);
 }
 
 void setupFunctions()
 {
     Particle.function("slack", slack);
+    Particle.function("display", changeDisplayMode);
 }
 
 void loop(void)
 {
     float fahrenheit; 
     float celsius;
+    int fahrenheitAdjusted;
 
+    // --------------
+    // temperature
+    // --------------
     celsius = readTemperature();
     
     if (celsius <= -255) {
@@ -57,8 +86,48 @@ void loop(void)
     Serial.println(" Fahrenheit");
 
     Particle.publish("natehome/temperature", String(fahrenheit), PRIVATE);
-
+    
+    // --------------
+    // light
+    // --------------
+    lastLight = analogRead(A0);
+    Serial.printlnf(" Light %d", lastLight);
+    
+    updateDisplay();
     delay(5000);
+}
+
+void updateDisplay()
+{
+    bool lightDisplayed = false;
+    bool tempDisplayed = false;
+
+    Serial.printlnf(" Display Mode %s", displayMode);
+    
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.setTextSize(TEXT_MEDIUM);
+
+    if (displayMode == "light") {
+        display.print(String(lastLight));
+        display.setTextSize(TEXT_SMALL);
+        display.print(" us");
+        lightDisplayed = true;
+    } else {
+        display.print(farenheitDisplay());
+        display.setTextSize(TEXT_SMALL);
+        display.print(" F");
+        tempDisplayed = true;
+    }
+    
+    display.display();
+
+    // change display mode
+    if (lightDisplayed) {
+        displayMode = "temp";
+    } else {
+        displayMode = "light";
+    }
 }
 
 float celsiusToFarenheit(float celsius)
@@ -72,8 +141,7 @@ int slack(String command)
     String data;
     
     if (command == "") {
-        int temp =  (int) (celsiusToFarenheit(lastTemp) +  0.5);
-        data = "It is currently " + String(temp) + "F in the house.";
+        data = "It is currently " + farenheitDisplay() + "F in the house.";
     } else {
         data = command;
     }
@@ -87,6 +155,22 @@ int slack(String command)
     }
 
     return 1;
+}
+
+int changeDisplayMode(String command)
+{
+    if (command == "" || command == "temp") {
+        displayMode = "temp";
+    } else {
+        displayMode = command;
+    }
+    
+    updateDisplay();
+}
+
+String farenheitDisplay()
+{
+    return String((int) (celsiusToFarenheit(lastTemp) +  0.5));
 }
 
 // COPY PASTA
@@ -244,4 +328,3 @@ float readTemperature()
 
   return celsius;
 }
-
