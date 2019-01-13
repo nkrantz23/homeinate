@@ -8,19 +8,22 @@
 #define OLED_CS D4
 #define OLED_RESET D5
 #define TEMP_PIN D2
+#define MOISTURE_PIN D1
 
 const int ERR_NO_MORE_ADDRESS = -255;
 const int ERR_CRC_INVALID = -256;
 const int ERR_UNKNOWN_DEVICE_TYPE = -257;
 const int TEXT_MEDIUM = 5;
 const int TEXT_SMALL = 2;
-const int LOOP_TIMER = 10000;
+const int LOOP_TIMER = 5000;
 
 OneWire ds = OneWire(TEMP_PIN);
 Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
 String displayMode = "temp";
 double lastTemp;
 int lastLight;
+int lastMoisture;
+double lastMoisturePct;
 
 void setup()
 {
@@ -52,6 +55,10 @@ void loop(void)
 
     publishLight(lastLight);
 
+    lastMoisture = readSoil();
+
+    lastMoisturePct = soilPercent();
+
     updateDisplay();
 
     delay(LOOP_TIMER);
@@ -64,11 +71,13 @@ void setupSensors()
 {
     Serial.begin(9600);
 
+    pinMode(D1, OUTPUT);
     pinMode(D3, OUTPUT);
     pinMode(D5, OUTPUT);
 
     digitalWrite(D3, LOW);
     digitalWrite(D5, HIGH);
+    digitalWrite(D1, LOW);
 }
 
 void setupDisplay()
@@ -82,6 +91,8 @@ void setupVariables()
 {
     Particle.variable("temperature", &lastTemp, DOUBLE);
     Particle.variable("light", &lastLight, INT);
+    Particle.variable("moisture", &lastMoisture, INT);
+    Particle.variable("moisture_percent", &lastMoisturePct, DOUBLE);
 }
 
 void setupFunctions()
@@ -100,6 +111,22 @@ void publishTemperature(double temperature)
 int readLight()
 {
     return analogRead(A0);
+}
+
+int readSoil()
+{
+    int val;
+    digitalWrite(D1, HIGH);
+    delay(10);
+    val = analogRead(A1);
+    return val;
+}
+
+double soilPercent()
+{
+    double max = 3300.0;
+
+    return (double)lastMoisture / max;
 }
 
 void publishLight(int light)
@@ -122,6 +149,14 @@ void updateDisplay()
         display.setTextSize(TEXT_SMALL);
         display.print(" us");
         displayMode = "temp";
+    }
+    else if (displayMode == "temp")
+    {
+        int lastMoistureDisplay = (int)(lastMoisturePct * 100);
+        display.print(String(lastMoistureDisplay));
+        display.setTextSize(TEXT_SMALL);
+        display.print(" %");
+        displayMode = "moisture";
     }
     else
     {
